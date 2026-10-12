@@ -1,0 +1,6 @@
+# data and run outputs
+results/*
+!results/.gitkeep
+*.dat
+__pycache__/
+*.pyc

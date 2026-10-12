@@ -1,0 +1,34 @@
+{
+ "msit001": {
+  "_comment": "Neuropixels 1.0 Sapiens (NP1016) on a PXI Record Node. AP file has 385 channels: 384 neural + 1 sync.",
+  "ap": "C:/Users/Data1/Desktop/NPX_data/Neuropix_2026-03-05_11-20-16/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-107.ProbeA-AP",
+  "lfp_base": "C:/Users/Data1/Desktop/NPX_data/Neuropix_2026-03-05_11-20-16",
+  "lfp_stream": "Record Node 108#Neuropix-PXI-107.ProbeA-LFP",
+  "motion": "C:/Users/Data1/Desktop/NPX_data/Neuropix_2026-03-05_11-20-16/motion_data",
+  "chanmap": "chanmaps/chanMap_np1016.mat",
+  "nch": 385,
+  "nchan_neural": 384,
+  "valid": [0.0, 1203.8],
+  "max_depth_um": 2320.0,
+  "motion_lowpass_hz": 0.05,
+  "baseline_motion_tag": null,
+  "slow_gain": null,
+  "cardiac_gain": 0.0
+ },
+ "msit004": {
+  "_comment": "Same probe recorded through a OneBox. AP stream has 384 channels and NO sync channel (sync is on the separate ADC stream). Valid window 805-1745 s: before that the probe was being driven to target, after it was withdrawn.",
+  "ap": "C:/Users/Data1/Desktop/NPX_data/NPIX_MSIT_004/Record Node 123/experiment1/recording1/continuous/OneBox-122.ProbeA-AP",
+  "lfp_base": "C:/Users/Data1/Desktop/NPX_data/NPIX_MSIT_004",
+  "lfp_stream": "Record Node 123#OneBox-122.ProbeA-LFP",
+  "motion": "C:/Users/Data1/Desktop/NPX_data/NPIX_MSIT_004/Record Node 123/experiment1/recording1/motion_data",
+  "chanmap": "chanmaps/chanMap_msit004.mat",
+  "nch": 384,
+  "nchan_neural": 384,
+  "valid": [805.0, 1745.0],
+  "max_depth_um": null,
+  "motion_lowpass_hz": 5.0,
+  "baseline_motion_tag": "msit004_nonrigid_800_t805-1745",
+  "slow_gain": 0.6,
+  "cardiac_gain": 0.0
+ }
+}

@@ -1,0 +1,7 @@
+{
+ "motion_fs": 250,
+ "batch_samples": 128,
+ "nchan_raw": 384,
+ "m_tol_um": 0.5,
+ "out_name": "interpseg_example"
+}
