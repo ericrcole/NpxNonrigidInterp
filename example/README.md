@@ -39,8 +39,9 @@ gain of 0.6. A rigid estimate is a single row.
 | `dredge_window_centers.csv` | depth of each row, µm - same coordinates as the channel map's ycoords |
 | `ref_displacement.csv` | one value per row, subtracted before applying: `-31.1, -28.5, -21.5, -19.6`. Taken over the WHOLE recording, so a segment run equals the matching batches of a full-length run |
 | `segment_t0.txt` | `1000.0` - the segment's start, in seconds from the start of the raw recording |
+| `inter_sample_shift.csv` | one value per neural channel: its ADC sampling delay as a fraction of a sample (here 0 to 0.846 = 28.2 µs). MATLAB phase-shifts the data by this before kriging |
 | `chanMap.mat` | Kilosort-style map with `xcoords`/`ycoords`; here 384 sites, y 0-3820 µm at 20 µm pitch, columns at x = 0 and 32 |
-| `interp_params.json` | `motion_fs` 250 (rate of the displacement), `batch_samples` 128 (interpolation batch, in 30 kHz samples), `nchan_raw` 384 (file width), `m_tol_um` 0.5 (rebuild the kriging operator when the shift moves this far), `out_name` (output folder and `.dat` name) |
+| `interp_params.json` | `motion_fs` 250 (rate of the displacement), `batch_samples` 128 (interpolation batch, in 30 kHz samples), `nchan_raw` 384 (file width), `m_tol_um` 0.5 (rebuild the kriging operator when the shift moves this far), `phase_shift` true and `phase_shift_margin_ms` 40 (the ADC correction), `out_name` (output folder and `.dat` name) |
 
 Sign convention: positive displacement means the tissue sits higher up the probe. Only
 `displacement - ref_displacement` is applied, so the absolute zero is arbitrary - but the units are
@@ -50,8 +51,10 @@ Sign convention: positive displacement means the tissue sits higher up the probe
 
 Nothing here requires DREDge. To apply a displacement from another source, write
 `nonrigid_displacement.csv`, `dredge_window_centers.csv` and `ref_displacement.csv` in the shapes
-above (rows = depth windows at 250 Hz; one row = rigid), drop in `chanMap.mat`, `segment_t0.txt`
-and `interp_params.json`, run `check_segment.py`, then `matlab/run_interp.m`.
+above (rows = depth windows at 250 Hz; one row = rigid), drop in `chanMap.mat`, `segment_t0.txt`,
+`inter_sample_shift.csv` and `interp_params.json`, run `check_segment.py`, then
+`matlab/run_interp.m`. If your probe has no ADC skew, or the data is already phase-corrected,
+set `"phase_shift": false` instead of supplying the CSV.
 
 Verify the result the same way regardless of where the estimate came from: `template_tracking.py`,
 then the slope/r rule in the main README. The pipeline applies whatever it is given; only that check

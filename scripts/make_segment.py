@@ -15,6 +15,32 @@ _R=recinfo.get()
 AP=_R['ap']
 NCH=_R['nch']; FS=30000; NFRAMES=_R['nframes']; MOTION_FS=250
 
+def write_inter_sample_shift(S):
+    """Write the per-channel ADC sampling delay, for the phase shift MATLAB applies before kriging.
+
+    Neuropixels multiplexes channels onto a few ADCs, so within one sample period each channel
+    is digitised at a slightly different time (up to ~0.85 samples = 28 us on NP1.0). Kriging
+    forms each output channel from a weighted sum of its neighbours, so it must be corrected
+    first - afterwards the time-skewed copies have already been mixed. SpikeInterface reads the
+    delays from the recording's own metadata as the "inter_sample_shift" property, in units of
+    1/fs, and that is what is written here (one value per neural channel, file order).
+    """
+    import spikeinterface.full as si
+    stream = _R.get('ap_stream') or _R['lfp_stream'].replace('-LFP', '-AP')
+    rec = si.read_openephys(_R['lfp_base'], stream_name=stream, load_sync_channel=False)
+    iss = rec.get_property('inter_sample_shift')
+    if iss is None:
+        raise SystemExit('stream %s has no inter_sample_shift property; set "phase_shift": false '
+                         'in interp_params.json to skip the ADC correction' % stream)
+    iss = np.asarray(iss)[:_R['nchan_neural']]
+    if len(iss) != _R['nchan_neural']:
+        raise SystemExit('got %d inter_sample_shift values for %d neural channels'
+                         % (len(iss), _R['nchan_neural']))
+    np.savetxt(S/'inter_sample_shift.csv', iss, delimiter=',', fmt='%.9f')
+    print('inter_sample_shift: %d channels, max skew %.1f us'
+          % (len(iss), 1e6*(iss.max()-iss.min())/FS))
+
+
 def main(t0,t1,name,motion=None):
     S=AP/name; S.mkdir(exist_ok=True)
     F0,F1=int(t0*FS),min(int(t1*FS),NFRAMES)   # clamp to the recording
@@ -38,6 +64,7 @@ def main(t0,t1,name,motion=None):
             j=min(F1-F0,i+500_000); out[i:j]=src[F0+i:F0+j]
         out.flush(); del out,src
     shutil.copy(_R['chanmap'],S/'chanMap.mat')
+    write_inter_sample_shift(S)
     if motion is None:
         dsrc, csrc = AP/'nonrigid_displacement.csv', AP/'dredge_window_centers.csv'
     else:
@@ -66,6 +93,8 @@ def main(t0,t1,name,motion=None):
         batch_samples=128,        # interpolation batch length, in 30 kHz samples
         nchan_raw=NCH,            # channels in the FILE (sync included) - NOT the neural count
         m_tol_um=0.5,             # rebuild the kriging operator when the shift moves this far
+        phase_shift=True,         # ADC phase shift before kriging (see write_inter_sample_shift)
+        phase_shift_margin_ms=40.0,   # spikeinterface.phase_shift's default margin
         out_name='interp'+name,
     ), indent=1))
     print(f'{name}: t={t0:.0f}-{t1:.0f} s, {F1-F0} frames -> {S}')

@@ -41,6 +41,12 @@ segment_t0.txt
     One number: the segment's start time in seconds, relative to the start of the raw recording.
     Used to line the displacement up with spike times during verification.
 
+inter_sample_shift.csv
+    One value per NEURAL channel, in file order: that channel's ADC sampling delay as a fraction
+    of a sample (0 to ~0.85 on NP1.0 = up to 28 us). Written by make_segment.py from the
+    recording's own metadata, and used by MATLAB to phase-shift the data BEFORE kriging. Required
+    unless interp_params.json sets "phase_shift": false.
+
 chanMap.mat
     Kilosort-style channel map with xcoords/ycoords (and chanMap/connected). Must describe the
     probe that recorded this file - the kriging weights come from these coordinates.
@@ -48,7 +54,8 @@ chanMap.mat
 interp_params.json
     motion_fs (sample rate of the displacement, 250), batch_samples (interpolation batch length in
     30 kHz samples, 128), nchan_raw (= nch, sync included), m_tol_um (rebuild the kriging operator
-    when the shift moves this far, 0.5), out_name (output folder and .dat name).
+    when the shift moves this far, 0.5), phase_shift (apply the ADC correction, true),
+    phase_shift_margin_ms (40, as in spikeinterface), out_name (output folder and .dat name).
 """
 import json
 import sys
@@ -86,6 +93,20 @@ def main(seg):
         strain = np.abs(np.diff(D, axis=0) / np.median(np.diff(wc))).max()
         print("  max strain          %.3f between neighbouring windows%s"
               % (strain, "  (>0.5 is implausible - check the window size)" if strain > 0.5 else ""))
+    iss_file = seg / "inter_sample_shift.csv"
+    if p.get("phase_shift", True):
+        if not iss_file.exists():
+            print("  !! phase_shift is on but inter_sample_shift.csv is missing - re-run make_segment.py")
+            bad += 1
+        else:
+            iss = np.atleast_1d(np.loadtxt(iss_file, delimiter=","))
+            print("  ADC phase shift     ON, %.0f ms margin, %d channels, skew %.1f us max"
+                  % (p.get("phase_shift_margin_ms", 40.0), len(iss), 1e6 * (iss.max() - iss.min()) / FS))
+            if len(iss) > p["nchan_raw"]:
+                print("  !! %d shift values for a %d-channel file" % (len(iss), p["nchan_raw"]))
+                bad += 1
+    else:
+        print("  ADC phase shift     OFF - kriging will mix channels sampled at different times")
     dat = seg / "continuous.dat"
     if dat.exists():
         size = dat.stat().st_size

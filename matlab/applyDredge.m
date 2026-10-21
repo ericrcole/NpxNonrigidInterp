@@ -215,7 +215,32 @@ if getOr(rez.ops.dredge, 'removeOffset', true)
         median(rez.ops.dredge.chanOffset), std(rez.ops.dredge.chanOffset)));
 end
 
-clear shift_batch_on_disk2_dredge   % drop any cached kriging matrix from a prior run
+% ERC: Neuropixels ADC phase shift (on by default). Validated and reported here so a run
+% always states whether the correction was applied; the work happens in phase_shift_reader,
+% called from shift_batch_on_disk2_dredge before the kriging.
+if getOr(rez.ops.dredge, 'phaseShift', true)
+    iss = getOr(rez.ops.dredge, 'interSampleShift', []);
+    if isempty(iss)
+        error(['phaseShift is on but no interSampleShift was supplied. Re-run make_segment.py ' ...
+               'to write inter_sample_shift.csv into the segment folder, or set ' ...
+               'dredgeParams.phaseShift = false to interpolate without the ADC correction.']);
+    end
+    if numel(iss) ~= rez.ops.Nchan
+        error('interSampleShift has %d entries but Nchan is %d', numel(iss), rez.ops.Nchan);
+    end
+    rez.ops.dredge.interSampleShift = iss(:)';
+    rez.ops.dredge.psMargin = round(getOr(rez.ops.dredge, 'psMarginMs', 40) * rez.ops.fs / 1000);
+    rez.ops.dredge.psBlockFrames = getOr(rez.ops.dredge, 'psBlockFrames', 60000);
+    rez.ops.dredge.nFramesFile = nFramesFile;
+    disp(sprintf(['ADC phase shift ON before kriging: %.1f ms margin, %d-frame blocks, ' ...
+        'channel skew %.1f us max'], getOr(rez.ops.dredge, 'psMarginMs', 40), ...
+        rez.ops.dredge.psBlockFrames, 1e6 * (max(iss) - min(iss)) / rez.ops.fs));
+else
+    disp('ADC phase shift OFF (dredgeParams.phaseShift = false)');
+end
+ops = rez.ops;
+
+clear shift_batch_on_disk2_dredge phase_shift_reader   % drop caches from a prior run
 
 fprintf('realigning batches %d..%d of %d (streaming, no pre-copy)\n', b0, b1, Nbatches);
 tic;

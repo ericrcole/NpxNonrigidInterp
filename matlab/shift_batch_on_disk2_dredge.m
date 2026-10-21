@@ -83,6 +83,23 @@ dat   = fread(fidIn, [nRaw NT+ntb], '*int16')';     % [nread x nRaw]
 nread = size(dat, 1);
 if nread == 0, return; end
 
+% ERC: Neuropixels ADC phase shift, applied BEFORE kriging (ops.dredge.phaseShift, on by
+% default). The ADCs digitise channels at staggered times within one sample period
+% (inter_sample_shift, up to ~0.85 samples = 28 us on NP1.0). Kriging mixes neighbouring
+% channels, so without this it sums waveforms that are skewed in time by a fraction of a
+% sample, and because the mixing weights follow the motion the resulting distortion varies
+% over time. Correcting afterwards cannot undo it - the mixing has already happened.
+% phase_shift_reader does exactly what spikeinterface.phase_shift does (same margin, same
+% taper, same FFT rotation), reading whole blocks so the margin is not paid per batch.
+if getOr(ops.dredge, 'phaseShift', true)
+    neural = phase_shift_reader(fidIn, batchstart(ibatch), nread, nRaw, ops.Nchan, ...
+                                ops.dredge.interSampleShift, ops.dredge.psMargin, ...
+                                ops.dredge.psBlockFrames, ops.dredge.nFramesFile);
+    neural = single(neural);
+else
+    neural = single(dat(:, ichan));
+end
+
 % ERC: remove each channel's DC offset before kriging and restore the OUTPUT channel's own
 % offset afterwards. Raw AP channels carry different DC offsets (msit004: SD 194 counts
 % across channels). Kriging with time-varying weights mixes those offsets, producing a
@@ -91,10 +108,10 @@ if nread == 0, return; end
 % It sits below Kilosort's high-pass, but it is an artifact and costs nothing to remove.
 off = getOr(ops.dredge, 'chanOffset', []);
 if isempty(off)
-    dati = gpuArray(single(dat(:, ichan))) * gpuArray(Mcache)';
+    dati = gpuArray(neural) * gpuArray(Mcache)';
 else
     offg = gpuArray(single(off(:)'));
-    dati = (gpuArray(single(dat(:, ichan))) - offg) * gpuArray(Mcache)' + offg;
+    dati = (gpuArray(neural) - offg) * gpuArray(Mcache)' + offg;
 end
 
 % raised cosine (was linear) -> zero slope at both ends, so the effective shift is

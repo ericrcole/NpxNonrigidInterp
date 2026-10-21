@@ -27,21 +27,23 @@ DREDge through SpikeInterface. This is a standalone internal copy, not a fork: s
 ## Requirements
 
 - **MATLAB** (developed on R2024b) and a clone of
-  [InterpolationAfterDREDge](https://github.com/williamunoz/InterpolationAfterDREDge).
-  The four files in [matlab/](matlab/) are modified versions of files in that repo - copy them in,
-  replacing the originals (see [matlab/README.md](matlab/README.md)).
+  [InterpolationAfterDREDge](https://github.com/williamunoz/InterpolationAfterDREDge), which
+  supplies the supporting functions. Four of its files are modified here and shadow the
+  originals automatically (see [matlab/README.md](matlab/README.md)).
 - **Python 3.11+** with `spikeinterface`, `torch` (DREDge needs it), `numpy`, `scipy`, `matplotlib`,
   `h5py`. A conda env is easiest:
   `conda create -n dredge python=3.11 && pip install spikeinterface[full] torch h5py`
 - **Disk**: each interpolated output is the same size as the segment you interpolate (~21 GB per
   15 min of 384-channel data). You need room for the segment plus its output.
-- **Time** on a 32-core desktop: DREDge ~10 min per recording, interpolation ~8-15 min per 15 min
-  segment, unit tracking ~15 min per segment.
+- **Time** on a 32-core desktop: DREDge ~10 min per recording, interpolation ~15-30 min per
+  15 min segment (the ADC phase shift roughly doubles it), unit tracking ~15 min per segment.
 
 ## Setup
 
 1. Clone/copy this folder and the InterpolationAfterDREDge repo.
-2. Copy `matlab/*.m` from here into the repo as described in [matlab/README.md](matlab/README.md).
+2. Nothing to copy: `run_interp.m` puts this package's `matlab/` folder ahead of the repo on the
+   MATLAB path, so its modified files shadow the repo's originals (see
+   [matlab/README.md](matlab/README.md)).
 3. Set `INTERP_REPO` to the repo path, or pass it as the 2nd argument to `run_interp`.
 4. Add your recording to [recordings.json](recordings.json) (copy an existing entry):
 
@@ -125,6 +127,9 @@ python scripts/check_segment.py "<ap folder>/seg_g100"
 
 ### 4. Interpolate (MATLAB)
 
+The ADC phase shift is applied to the AP data before kriging,
+automatically (see **ADC phase shift** below).
+
 ```bash
 matlab -batch "addpath('C:/path/to/npix_motion_pipeline/matlab'); run_interp('C:/.../seg_g100', 'C:/path/to/InterpolationAfterDREDge')"
 ```
@@ -190,7 +195,8 @@ editor, with [example/README.md](example/README.md) describing every field:
   windows, columns = time at 250 Hz**), `<tag>_window_centers.csv` (depth of each row),
   `<tag>_t0.txt`, `<tag>_config.json`.
 - `example/segment_seg_example/` - what MATLAB reads: the sliced displacement, window centres,
-  `ref_displacement.csv`, `segment_t0.txt`, `chanMap.mat` and `interp_params.json`. The raw
+  `ref_displacement.csv`, `segment_t0.txt`, `chanMap.mat`, `inter_sample_shift.csv` and
+  `interp_params.json`. The raw
   `continuous.dat` (int16, channel-interleaved, width = `nch` including sync, no header) is the only
   file not included, for size.
 
@@ -201,6 +207,29 @@ map and window depths in the same coordinates - and its docstring is the format 
 **Nothing requires DREDge.** To apply a displacement from another estimator, write those CSVs in the
 shapes above (one row = a rigid estimate), run `check_segment.py`, then `run_interp.m`, then verify
 with `template_tracking.py` exactly as below.
+
+## ADC phase shift
+
+Neuropixels digitises channels at staggered times within one sample period (up to 28 us on
+NP1.0). Kriging mixes neighbouring channels, so this has to be corrected **before**
+interpolation - mixing time-skewed copies distorts the waveform and nothing downstream,
+Kilosort included, can undo it. Kilosort does not do this correction, so if the pipeline does
+not, it never happens.
+
+It is **on by default** and needs nothing from you: `make_segment.py` writes
+`inter_sample_shift.csv` from the recording's metadata, and MATLAB applies it per block before
+the kriging (`matlab/apply_frequency_shift.m`, `matlab/phase_shift_reader.m`). The
+implementation is a port of `spikeinterface.preprocessing.phase_shift`, matching it to 6e-5 ADC
+counts on real data - verify on your own recording with:
+
+```bash
+python scripts/check_phase_shift.py "<ap folder>/seg_g100"
+```
+
+Motion estimation already used phase-shifted data (`dredge_recording.py` phase-shifts the LFP
+before DREDge). To interpolate without the correction, set `"phase_shift": false` in the
+segment's `interp_params.json`; a segment missing the CSV errors out rather than skipping it
+quietly.
 
 ## Cardiac (1-2 Hz) motion
 
@@ -238,11 +267,13 @@ recordings.json        per-recording config - the only file you normally edit
 example/               real input files, trimmed, with a README describing every format
 scripts/               check_setup, dredge_recording, derive_motion, make_segment, check_segment,
                        template_tracking, bracket_gain  (the pipeline, in order)
+                       check_phase_shift  (verifies the MATLAB ADC shift against spikeinterface)
                        cardiac_calib, driftfree_cardiac, card_by_depth, calibrate_gains,
                        score_driftfree, v2_eval, summary_figure  (cardiac + reporting)
                        injection_test, synthetic_kriging, lfp_scale_test  (validation of the
                        method itself: known motion in, measured motion out)
-matlab/                run_interp.m driver + the 4 modified InterpolationAfterDREDge files
+matlab/                run_interp.m driver, the ADC phase shift (apply_frequency_shift.m,
+                       phase_shift_reader.m) + the 4 modified InterpolationAfterDREDge files
 chanmaps/              channel maps for the NP1016 probes used here
 results/               everything the scripts write
 CREDITS.md             provenance: upstream repos, licenses, and what originated here

@@ -3,5 +3,7 @@
  "batch_samples": 128,
  "nchan_raw": 384,
  "m_tol_um": 0.5,
+ "phase_shift": true,
+ "phase_shift_margin_ms": 40.0,
  "out_name": "interpseg_example"
 }
